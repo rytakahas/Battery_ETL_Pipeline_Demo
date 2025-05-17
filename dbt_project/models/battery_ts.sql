@@ -1,3 +1,5 @@
-i-- No transformation, raw source pass-through
-SELECT * FROM {{ source('motherduck', 'battery_ts') }}
+-- battery_ts.sql (raw base, materialized as a view)
+{{ config(materialized='view') }}
+
+SELECT * FROM battery_ts_cleaned
 

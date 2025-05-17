@@ -1,15 +1,14 @@
-iname: 'battery_project'
+name: 'battery_project'
 version: '1.0'
 config-version: 2
 
-profile: 'default'
-
-target-path: "target"
-clean-targets:
-  - "target"
-  - "dbt_modules"
+profile: battery_profile
 
 models:
   battery_project:
-    materialized: table
+    +materialized: view  # default for all models
+    battery_cleaned:
+      +materialized: table
+    battery_features:
+      +materialized: table
 
