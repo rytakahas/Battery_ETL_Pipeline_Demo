@@ -45,18 +45,15 @@ def clean_data():
     conn = duckdb.connect(DB_PATH)
     df_raw = conn.execute("SELECT * FROM battery_ts_cleaned").fetchdf()
 
-    # Drop all-NA rows and normalize column names
     df_clean = df_raw.dropna(how="all")
     df_clean.columns = [col.strip().lower().replace(" ", "_") for col in df_clean.columns]
 
-    # Attempt numeric conversion
     for col in df_clean.columns:
         try:
             df_clean[col] = pd.to_numeric(df_clean[col])
         except Exception:
             continue
 
-    # Optional: filter by capacity outliers
     if "capacity" in df_clean.columns:
         q_low = df_clean["capacity"].quantile(0.01)
         q_high = df_clean["capacity"].quantile(0.99)
@@ -68,8 +65,20 @@ def clean_data():
     conn.execute("CREATE TABLE battery_cleaned AS SELECT * FROM cleaned_view")
     print("🧼 Cleaned data stored in 'battery_cleaned'")
 
-    # Save final warehouse table for analysis
-    conn.execute("DROP TABLE IF EXISTS battery_ts")
+    # Determine if battery_ts exists, and what type
+    object_type_df = conn.execute("""
+        SELECT table_type
+        FROM information_schema.tables
+        WHERE table_name = 'battery_ts'
+    """).fetchdf()
+
+    if not object_type_df.empty:
+        object_type = object_type_df.iloc[0]["table_type"]
+        if object_type.upper() == "VIEW":
+            conn.execute("DROP VIEW IF EXISTS battery_ts")
+        else:
+            conn.execute("DROP TABLE IF EXISTS battery_ts")
+
     conn.execute("CREATE TABLE battery_ts AS SELECT * FROM battery_cleaned")
     print("📄 Final table 'battery_ts' refreshed from 'battery_cleaned'")
 
