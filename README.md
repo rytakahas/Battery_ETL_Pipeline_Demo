@@ -3,7 +3,7 @@
 This project builds a **modern streaming data pipeline** to ingest, store, clean, and transform **battery degradation data** using:
 
 - **Redpanda (Kafka)** for real-time streaming
-- **Store raw ZIP/Excel in **MinIO**
+- Store raw ZIP/Excel in **MinIO**
 - **MotherDuck** as a scalable DuckDB-based analytical warehouse
 - **dbt** for data transformations
 - **Airflow (Astro)** for orchestration and scheduling
