@@ -24,6 +24,8 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
     • Data cleaning and transformation
     • dbt model refreshes and validation
     • Logging and alerts
+```
+
 ### Project Structure
 ```bash
 /airflow/
