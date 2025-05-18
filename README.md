@@ -3,6 +3,7 @@
 This project builds a **modern streaming data pipeline** to ingest, store, clean, and transform **battery degradation data** using:
 
 - **Redpanda (Kafka)** for real-time streaming
+- **MinIO** for data lake
 - **MotherDuck** as a scalable DuckDB-based analytical warehouse
 - **dbt** for data transformations
 - **Airflow (Astro)** for orchestration and scheduling
@@ -14,9 +15,11 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
 ```plaintext
 [Redpanda Kafka]  →  [Python Producer (Streaming)]  
      ↓
-[Raw Table in MotherDuck (battery_ts_cleaned)]
+[Raw Table in MinIO (battery_ts_cleaned)]
      ↓
 [dbt Models] → battery_ts (view), battery_cleaned (table), battery_features (table)
+     ↓
+[Clean Table in MotherDuck (battery_ts)]
      ↓
 [Airflow DAG (Astro)] → Orchestrates:
     • Kafka streaming checks
@@ -52,6 +55,10 @@ cd battery-pipeline
 2. Create .env File
 ```env
 MOTHERDUCK_TOKEN=your_motherduck_token_here
+MINIO_ENDPOINT=your_minio_endpoint
+MINIO_ACCESS_KEY=your_minio_access_key
+MINIO_SECRET_KEY=your_minio_secret_key
+MINIO_BUCKET=battery-data
 ```
 
 3. Start Astro Dev Environment
@@ -73,21 +80,6 @@ To verify:
 ```bash
 docker exec -it redpanda rpk topic list
 ```
-
-### Stream Data from Python
-Use the provided battery_stream_producer.py:
-
-```bash
-python battery_stream_producer.py
-```
-
-### This will:
-
-Download and extract Excel data
-
-Insert raw rows into battery_ts_cleaned (MotherDuck)
-
-Send Kafka messages to battery_topic
 
 ### dbt Models
 Model	Type	Description
@@ -119,9 +111,11 @@ SELECT source_file, COUNT(*) FROM battery_ts GROUP BY source_file;
 SELECT MAX("voltage(v)"), streamed_at FROM battery_ts GROUP BY streamed_at ORDER BY streamed_at DESC;
 
 -- Feature: Power = Voltage * Current
-SELECT "voltage(v)" * "current(a)" AS power
-FROM battery_ts
-WHERE "voltage(v)" IS NOT NULL AND "current(a)" IS NOT NULL;
+SELECT
+  *,
+  CAST("voltage(v)" AS DOUBLE) * CAST("current(a)" AS DOUBLE) AS power_watt,
+  CAST("charge_capacity(ah)" AS DOUBLE) + CAST("discharge_capacity(ah)" AS DOUBLE) AS total_capacity
+FROM {{ ref('battery_cleaned') }}
 ```
 
 ### Requirements
@@ -131,11 +125,11 @@ Docker
 
 Astro CLI
 
-dbt-duckdb
+dbt-duckdb, DuckDB, Redpanda, boto3
 
-DuckDB
+MotherDuck account (token-based access)
 
-Redpanda (Kafka) Docker container
+Optional: AWS S3-compatible endpoint (MinIO, iDrive, etc.)
 
 ### Testing
 You can run individual steps in the Astro UI, or test locally using:
