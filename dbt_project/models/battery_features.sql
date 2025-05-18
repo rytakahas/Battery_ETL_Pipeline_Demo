@@ -2,7 +2,7 @@
 
 SELECT
   *,
-  "voltage(v)" * "current(a)" AS power_watt,
-  "charge_capacity(ah)" + "discharge_capacity(ah)" AS total_capacity
+  CAST("voltage(v)" AS DOUBLE) * CAST("current(a)" AS DOUBLE) AS power_watt,
+  CAST("charge_capacity(ah)" AS DOUBLE) + CAST("discharge_capacity(ah)" AS DOUBLE) AS total_capacity
 FROM {{ ref('battery_cleaned') }}
 

@@ -1,12 +1,10 @@
 FROM quay.io/astronomer/astro-runtime:8.0.0
 
-RUN pip install --no-cache-dir \
-    dbt-duckdb \
-    duckdb \
-    pandas \
-    openpyxl \
-    confluent-kafka
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY include/.dbt /home/astro/.dbt
+
 ENV PATH="/home/astro/.local/bin:$PATH"
 
