@@ -1,0 +1,9 @@
+battery_profile:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: md:battery_db?motherduck_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJ5b2ppLnRha2FoYXNoaUBnbWFpbC5jb20iLCJzZXNzaW9uIjoicnlvamkudGFrYWhhc2hpLmdtYWlsLmNvbSIsInBhdCI6Im5FM3NZLXdENEhWcWR0aUotcmZUazlyZVlkT3VEY21GWWJXaC1QbGVPNWsiLCJ1c2VySWQiOiIwNGZiODAyZS01MjJhLTQ1MDMtOTYyMC1mYmNiNzJjNmJiYjkiLCJpc3MiOiJtZF9wYXQiLCJyZWFkT25seSI6ZmFsc2UsInRva2VuVHlwZSI6InJlYWRfd3JpdGUiLCJpYXQiOjE3NDczMTk4NzV9.dDFrp-nsxROrdV1_QnBNlrAx3E8de0ZUOMfaGLQOiZ4
+      threads: 1
+      target: dev
+

@@ -3,7 +3,6 @@
 This project builds a **modern streaming data pipeline** to ingest, store, clean, and transform **battery degradation data** using:
 
 - **Redpanda (Kafka)** for real-time streaming
-- Store raw ZIP/Excel in **MinIO**
 - **MotherDuck** as a scalable DuckDB-based analytical warehouse
 - **dbt** for data transformations
 - **Airflow (Astro)** for orchestration and scheduling
@@ -15,7 +14,7 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
 ```plaintext
 [Redpanda Kafka]  →  [Python Producer (Streaming)]  
      ↓
-[Raw Table in MinIO (battery_ts_cleaned)]
+[Raw Table in MotherDuck (battery_ts_cleaned)]
      ↓
 [dbt Models] → battery_ts (view), battery_cleaned (table), battery_features (table)
      ↓
@@ -24,8 +23,6 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
     • Data cleaning and transformation
     • dbt model refreshes and validation
     • Logging and alerts
-```
-
 ### Project Structure
 ```bash
 /airflow/
@@ -53,7 +50,7 @@ git clone https://github.com/your-org/battery-pipeline
 cd battery-pipeline
 
 2. Create .env File
-.env
+```env
 MOTHERDUCK_TOKEN=your_motherduck_token_here
 ```
 

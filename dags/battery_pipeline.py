@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import duckdb
 import pandas as pd
 import os
+import boto3
 
 # Default DAG arguments
 DEFAULT_ARGS = {
@@ -16,91 +17,75 @@ DEFAULT_ARGS = {
 }
 
 # Connect to MotherDuck
-MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJ5b2ppLnRha2FoYXNoaUBnbWFpbC5jb20iLCJzZXNzaW9uIjoicnlvamkudGFrYWhhc2hpLmdtYWlsLmNvbSIsInBhdCI6Im5FM3NZLXdENEhWcWR0aUotcmZUazlyZVlkT3VEY21GWWJXaC1QbGVPNWsiLCJ1c2VySWQiOiIwNGZiODAyZS01MjJhLTQ1MDMtOTYyMC1mYmNiNzJjNmJiYjkiLCJpc3MiOiJtZF9wYXQiLCJyZWFkT25seSI6ZmFsc2UsInRva2VuVHlwZSI6InJlYWRfd3JpdGUiLCJpYXQiOjE3NDczMTk4NzV9.dDFrp-nsxROrdV1_QnBNlrAx3E8de0ZUOMfaGLQOiZ4")
+MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
 DB_PATH = f"md:battery_db?motherduck_token={MOTHERDUCK_TOKEN}"
+
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "https://m3g2.ldn.idrivee2-66.com")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "qy1bbnyZNrTbkzd63k7d")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadminD7yiFWqeYUYGykqrEvtVJa6il4bWKVtfwnN0Wop3")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "battery-data")
 
 # Check if streaming data has been ingested recently
 def check_streamed_data():
-    conn = duckdb.connect(DB_PATH)
-    tables = conn.execute("SHOW TABLES").fetchdf()
-    if "battery_ts_cleaned" not in tables['name'].values:
-        print("⚠️ Table 'battery_ts_cleaned' does not exist. Skipping check.")
+    s3 = boto3.client('s3',
+        endpoint_url=MINIO_ENDPOINT,
+        aws_access_key_id=MINIO_ACCESS_KEY,
+        aws_secret_access_key=MINIO_SECRET_KEY
+    )
+    objects = s3.list_objects_v2(Bucket=MINIO_BUCKET)
+    if 'Contents' not in objects:
+        print("No files found in MinIO.")
         return False
-
-    df = conn.execute("""
-        SELECT
-            COUNT(*) AS total_rows,
-            MAX(TRY_CAST(streamed_at AS TIMESTAMP)) AS last_streamed,
-            SUM(CASE WHEN TRY_CAST(streamed_at AS TIMESTAMP) >= NOW() - INTERVAL '1 hour' THEN 1 ELSE 0 END) AS last_hour_count
-        FROM battery_ts_cleaned
-    """).fetchdf()
-
-    print(f"🟡 Total rows: {df.iloc[0]['total_rows']}")
-    print(f"⏱️ Last streamed: {df.iloc[0]['last_streamed']}")
-    print(f"⚡ Rows in last hour: {df.iloc[0]['last_hour_count']}")
+    print(f"Found {len(objects['Contents'])} files in MinIO bucket.")
     return True
 
-# Clean and normalize battery data
+# Clean and normalize battery data from MinIO and store in MotherDuck
 def clean_data():
-    conn = duckdb.connect(DB_PATH)
-    df_raw = conn.execute("SELECT * FROM battery_ts_cleaned").fetchdf()
+    s3 = boto3.client('s3',
+        endpoint_url=MINIO_ENDPOINT,
+        aws_access_key_id=MINIO_ACCESS_KEY,
+        aws_secret_access_key=MINIO_SECRET_KEY
+    )
+    response = s3.list_objects_v2(Bucket=MINIO_BUCKET)
+    latest_file = sorted(response['Contents'], key=lambda x: x['LastModified'], reverse=True)[0]['Key']
+    obj = s3.get_object(Bucket=MINIO_BUCKET, Key=latest_file)
+    df_raw = pd.read_csv(obj['Body'])
 
     df_clean = df_raw.dropna(how="all")
     df_clean.columns = [col.strip().lower().replace(" ", "_") for col in df_clean.columns]
-
     for col in df_clean.columns:
         try:
             df_clean[col] = pd.to_numeric(df_clean[col])
         except Exception:
             continue
-
     if "capacity" in df_clean.columns:
         q_low = df_clean["capacity"].quantile(0.01)
         q_high = df_clean["capacity"].quantile(0.99)
         df_clean = df_clean[(df_clean["capacity"] >= q_low) & (df_clean["capacity"] <= q_high)]
 
-    # Save intermediate cleaned table
+    conn = duckdb.connect(DB_PATH)
     conn.execute("DROP TABLE IF EXISTS battery_cleaned")
     conn.register("cleaned_view", df_clean)
     conn.execute("CREATE TABLE battery_cleaned AS SELECT * FROM cleaned_view")
-    print("🧼 Cleaned data stored in 'battery_cleaned'")
+    print("Cleaned data stored in MotherDuck")
 
-    # Determine if battery_ts exists, and what type
-    object_type_df = conn.execute("""
-        SELECT table_type
-        FROM information_schema.tables
-        WHERE table_name = 'battery_ts'
-    """).fetchdf()
-
-    if not object_type_df.empty:
-        object_type = object_type_df.iloc[0]["table_type"]
-        if object_type.upper() == "VIEW":
-            conn.execute("DROP VIEW IF EXISTS battery_ts")
-        else:
-            conn.execute("DROP TABLE IF EXISTS battery_ts")
-
-    conn.execute("CREATE TABLE battery_ts AS SELECT * FROM battery_cleaned")
-    print("📄 Final table 'battery_ts' refreshed from 'battery_cleaned'")
-
-# Notify end of pipeline
 def notify():
-    print("✅ Pipeline ran successfully")
+    print("Pipeline ran successfully")
 
-# Define DAG
 with DAG(
-    dag_id='battery_pipeline',
+    dag_id='battery_pipeline_minio_motherduck',
     default_args=DEFAULT_ARGS,
     schedule='@hourly',
     catchup=False
 ) as dag:
 
     check_data = PythonOperator(
-        task_id='check_streamed_data',
+        task_id='check_minio_raw_data',
         python_callable=check_streamed_data
     )
 
     clean_table = PythonOperator(
-        task_id='clean_battery_data',
+        task_id='clean_and_store_to_motherduck',
         python_callable=clean_data
     )
 
