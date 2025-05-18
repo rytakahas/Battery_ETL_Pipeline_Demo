@@ -53,7 +53,7 @@ git clone https://github.com/your-org/battery-pipeline
 cd battery-pipeline
 
 2. Create .env File
-```env
+.env
 MOTHERDUCK_TOKEN=your_motherduck_token_here
 ```
 
