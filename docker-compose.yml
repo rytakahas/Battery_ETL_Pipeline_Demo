@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ACCESS_KEY: qy1bbnyZNrTbkzd63k7d
+      MINIO_SECRET_KEY: D7yiFWqeYUYGykqrEvtVJa6il4bWKVtfwnN0Wop3
+    volumes:
+      - minio_data:/data
+    networks:
+      - analytics_net
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.10
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --overprovisioned
+      - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --node-id 0
+      - --check=false
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    networks:
+      - analytics_net
+
+  astro-airflow:
+    image: quay.io/astronomer/astro-runtime:8.0.0
+    container_name: astro-airflow
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/usr/local/airflow
+    env_file:
+      - .env
+    depends_on:
+      - redpanda
+      - minio
+    networks:
+      - analytics_net
+
+volumes:
+  minio_data:
+
+networks:
+  analytics_net:
+    driver: bridge
+
