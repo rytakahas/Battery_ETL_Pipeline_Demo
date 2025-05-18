@@ -14,7 +14,7 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
 ```plaintext
 [Redpanda Kafka]  →  [Python Producer (Streaming)]  
      ↓
-[Raw Table in MotherDuck (battery_ts_cleaned)]
+[Raw Table in MinIO (battery_ts_cleaned)]
      ↓
 [dbt Models] → battery_ts (view), battery_cleaned (table), battery_features (table)
      ↓
