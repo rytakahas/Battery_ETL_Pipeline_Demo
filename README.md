@@ -30,22 +30,29 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
 
 ### Project Structure
 ```bash
-/airflow/
-  dags/
-    battery_pipeline.py         # Airflow DAG that orchestrates ETL & dbt steps
+├── Dockerfile
+├── README.md
+├── airflow/
+│   └── dags/
+│       └── battery_pipeline.py
+├── dags/
+│   ├── battery_pipeline.py
+│   └── exampledag.py
+├── dbt_project/
+│   ├── dbt_project.yml
+│   └── models/
+│       ├── battery_cleaned.sql
+│       ├── battery_features.sql
+│       ├── battery_ts.sql
+│       └── schema.yml
+├── docker-compose.yml
+├── include/
+│   └── .dbt/
+│       └── profiles.yml
+└── notebook/
+    └── ingest_battery_stream.ipynb
 
-/dbt_project/
-  dbt_project.yml               # dbt configuration (profile: battery_profile)
-  models/
-    battery_ts.sql              # Raw view from battery_ts_cleaned
-    battery_cleaned.sql         # Cleans and filters raw data (table)
-    battery_features.sql        # Feature engineering model (table)
-
-/include/.dbt/
-  profiles.yml                  # dbt profile with MotherDuck token + connection
-
-.env                            # Stores MOTHERDUCK_TOKEN
-Dockerfile                      # Custom Astro image with DuckDB + dbt + Kafka
+.env                            # Stores MOTHERDUCK_TOKEN                     
 ```
 
 ### Setup Instructions
