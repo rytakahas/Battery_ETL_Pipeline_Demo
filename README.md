@@ -160,3 +160,38 @@ MotherDuck + DuckDB
 Astro by Astronomer
 
 Redpanda for streaming Kafka replacement
+
+## Future Work
+
+As the volume, velocity, and variety of battery degradation data increase—particularly for real-time, multi-source IoT streams—this pipeline can be extended in several directions inspired by production-scale architectures used by companies like **Netflix** and **Amazon**:
+
+### Scale for High-Throughput Workloads
+
+1. **Apache Spark or PySpark Integration**  
+   - For distributed transformation, cleaning, and feature engineering on large-scale time series datasets.
+   - Enables in-memory aggregation, fault tolerance, and GPU acceleration.
+
+2. **Apache Iceberg or Delta Lake**  
+   - Add support for **transactional data lakes** with versioned table storage.
+   - Iceberg allows schema evolution, time-travel queries, and optimized merge/update operations over large-scale S3 or MinIO datasets.
+
+3. **Trino / Presto for Query Federation**  
+   - Use **Trino** as a federated query engine to join across:
+     - Iceberg (MinIO)
+     - MotherDuck / DuckDB
+     - External APIs or relational DBs
+   - Enables scalable ad hoc SQL over heterogeneous storage systems.
+
+4. **MLFlow + Real-Time Model Deployment**  
+   - Incorporate model training and tracking using MLFlow or Vertex AI Pipelines.
+   - Enables streaming predictions of battery health, time-to-failure, or anomaly detection directly within Airflow DAGs.
+
+5. **Advanced Stream Processing with Flink**  
+   - For near real-time CEP (Complex Event Processing), battery alerts, or predictive maintenance signals.
+   - Flink offers event time semantics and windowed joins over Kafka/Redpanda topics.
+
+6. **Distributed Feature Store**  
+   - Use Feast or Hopsworks to serve time-aware features to downstream ML models across batch + stream.
+
+7. **Streaming Metadata Catalog**  
+   - Integrate with Amundsen or DataHub for lineage tracking, schema monitoring, and team collaboration.
