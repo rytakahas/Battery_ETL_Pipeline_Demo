@@ -1,10 +1,31 @@
-FROM quay.io/astronomer/astro-runtime:8.0.0
+FROM quay.io/astronomer/astro-runtime:9.2.0
 
-COPY requirements.txt .
+USER root
 
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Java and Spark
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk \
+    libgeos-dev \
+    curl \
+    unzip && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY include/.dbt /home/astro/.dbt
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
-ENV PATH="/home/astro/.local/bin:$PATH"
+# Install Spark
+ENV SPARK_VERSION=3.5.0
+RUN curl -L https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz \
+    | tar -xz -C /opt/ && \
+    ln -s /opt/spark-${SPARK_VERSION}-bin-hadoop3 /opt/spark
+
+ENV SPARK_HOME=/opt/spark
+ENV PATH="${SPARK_HOME}/bin:${PATH}"
+
+# Switch back to astro user
+USER astro
+
+# Install requirements
+COPY requirements.txt /
+RUN pip install --no-cache-dir -r /requirements.txt
 

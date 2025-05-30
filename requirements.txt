@@ -1,0 +1,6 @@
+pandas
+pyarrow
+shapely
+openpyxl
+google-cloud-bigquery
+

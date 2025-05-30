@@ -1,57 +1,47 @@
-version: '3.8'
+version: "3.9"
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file: .env
+  user: "${AIRFLOW_UID}:0"
+  environment:
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    GOOGLE_APPLICATION_CREDENTIALS: /usr/local/airflow/gcloud_credentials.json
+  volumes:
+    - .:/usr/local/airflow
+    - ./gcloud_credentials.json:/usr/local/airflow/gcloud_credentials.json:ro
 
 services:
-  minio:
-    image: minio/minio:latest
-    container_name: minio
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+  postgres:
+    image: postgres:13
     environment:
-      MINIO_ACCESS_KEY: qy1bbnyZNrTbkzd63k7d
-      MINIO_SECRET_KEY: D7yiFWqeYUYGykqrEvtVJa6il4bWKVtfwnN0Wop3
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
     volumes:
-      - minio_data:/data
-    networks:
-      - analytics_net
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
 
-  redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:v23.3.10
-    container_name: redpanda
-    command:
-      - redpanda start
-      - --overprovisioned
-      - --smp 1
-      - --memory 1G
-      - --reserve-memory 0M
-      - --node-id 0
-      - --check=false
-    ports:
-      - "9092:9092"
-      - "9644:9644"
-    networks:
-      - analytics_net
-
-  astro-airflow:
-    image: quay.io/astronomer/astro-runtime:8.0.0
-    container_name: astro-airflow
+  webserver:
+    <<: *airflow-common
     ports:
       - "8080:8080"
-    volumes:
-      - .:/usr/local/airflow
-    env_file:
-      - .env
+    command: webserver
     depends_on:
-      - redpanda
-      - minio
-    networks:
-      - analytics_net
+      - postgres
+
+  scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      - postgres
 
 volumes:
-  minio_data:
-
-networks:
-  analytics_net:
-    driver: bridge
+  postgres-db-volume:
 
