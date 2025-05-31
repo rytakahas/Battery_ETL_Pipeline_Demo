@@ -3,4 +3,6 @@ pyarrow
 shapely
 openpyxl
 google-cloud-bigquery
-
+confluent-kafka
+kafka-python
+pyspark

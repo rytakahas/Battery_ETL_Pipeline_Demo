@@ -1,4 +1,5 @@
 # battery_data_ingest.py
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
@@ -6,11 +7,12 @@ import os
 import requests
 import zipfile
 import pandas as pd
+import json
 from urllib.parse import urlparse, unquote
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
+from confluent_kafka import Consumer
 
-# Define DAG arguments
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -89,19 +91,65 @@ def extract_and_upload_to_bq():
         job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
         job.result()
 
+def consume_from_kafka_and_upload():
+    project_id = "able-balm-454718-n8"
+    dataset_id = "battery_sandbox"
+    table_id = f"{project_id}.{dataset_id}.battery_kafka_stream"
+
+    conf = {
+        'bootstrap.servers': 'kafka:9092',  # or localhost:9092 if local
+        'group.id': 'battery-consumer-group',
+        'auto.offset.reset': 'earliest'
+    }
+
+    consumer = Consumer(conf)
+    consumer.subscribe(['battery-stream'])
+
+    client = bigquery.Client(project=project_id)
+    messages = []
+
+    try:
+        while True:
+            msg = consumer.poll(1.0)
+            if msg is None:
+                break
+            if msg.error():
+                print(f"Kafka error: {msg.error()}")
+                continue
+
+            record = json.loads(msg.value().decode('utf-8'))
+            messages.append(record)
+
+        if messages:
+            df = pd.DataFrame(messages)
+            df['streamed_at'] = pd.Timestamp.utcnow()
+            job_config = bigquery.LoadJobConfig(
+                write_disposition="WRITE_APPEND",
+                autodetect=True
+            )
+            client.load_table_from_dataframe(df, table_id, job_config=job_config).result()
+
+    finally:
+        consumer.close()
+
 with DAG(
     'battery_data_ingest',
     default_args=default_args,
-    description='Download and upload battery data to BigQuery',
-    schedule_interval=None,
+    description='Download + Kafka ingest battery data to BigQuery',
+    schedule_interval='@hourly',
     start_date=datetime(2024, 1, 1),
     catchup=False
 ) as dag:
 
-    ingest_task = PythonOperator(
+    batch_ingest_task = PythonOperator(
         task_id='extract_and_upload_to_bq',
         python_callable=extract_and_upload_to_bq
     )
 
-    ingest_task
+    kafka_stream_task = PythonOperator(
+        task_id='consume_from_kafka_and_upload',
+        python_callable=consume_from_kafka_and_upload
+    )
+
+    batch_ingest_task >> kafka_stream_task
 
