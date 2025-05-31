@@ -1,9 +1,9 @@
 
-# Battery Degradation Analytics Pipeline (BigQuery Version)
+# Battery Degradation Analytics Pipeline (BigQuery + Kafka Version)
 
 This project builds a **modern streaming data pipeline** to ingest, store, clean, and transform **battery degradation data** using:
 
-- **Google Pub/Sub** for real-time ingestion
+- **Google Pub/Sub** or **Apache Kafka** for real-time ingestion
 - **Google Cloud Storage (GCS)** as a raw data lake
 - **BigQuery** as the data warehouse
 - **dbt** for SQL-based data transformations
@@ -14,6 +14,7 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
 ## Architecture Overview
 
 ```plaintext
+Option A: Google Cloud Pub/Sub
 [Google Pub/Sub]  →  [Python Producer (Streaming)]  
      ↓
 [GCS Raw Bucket (battery_raw/)]
@@ -29,6 +30,15 @@ This project builds a **modern streaming data pipeline** to ingest, store, clean
 [dbt Models] → battery_ts (view), battery_cleaned (table), battery_features (table)
      ↓
 [BigQuery Analytics Dataset]
+
+Option B: Kafka (Redpanda)
+[Kafka Topic (battery-data)]  
+     ↓
+[Python Kafka Consumer → Write to GCS]
+     ↓
+[GCS Raw Bucket (battery_raw/)]
+     ↓
+[Same downstream pipeline as Pub/Sub]
 ```
 
 ---
@@ -81,12 +91,54 @@ PUBSUB_TOPIC=battery-stream
 astro dev start
 ```
 
-### 4. Run Pub/Sub Producer
+---
+
+## Streaming via Kafka (Alternative to Pub/Sub)
+
+Install:
+
+```bash
+pip install kafka-python
+```
+
+**Kafka Producer Example**:
 
 ```python
-# Stream producer to Pub/Sub
-from google.cloud import pubsub_v1
-# Publishing battery data into 'battery-stream' topic
+from kafka import KafkaProducer
+import json
+
+producer = KafkaProducer(bootstrap_servers='localhost:9092',
+                         value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+
+data = {
+    "voltage_v": 4.2,
+    "current_a": 1.5,
+    "streamed_at": "2024-06-01T12:00:00Z",
+}
+
+producer.send('battery-data', value=data)
+producer.flush()
+```
+
+**Kafka Consumer Writing to GCS**:
+
+```python
+from kafka import KafkaConsumer
+from google.cloud import storage
+import json
+
+consumer = KafkaConsumer(
+    'battery-data',
+    bootstrap_servers='localhost:9092',
+    value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+)
+
+client = storage.Client()
+bucket = client.get_bucket('battery-raw-data')
+
+for msg in consumer:
+    blob = bucket.blob(f'battery_raw/stream_{msg.timestamp}.json')
+    blob.upload_from_string(json.dumps(msg.value), content_type='application/json')
 ```
 
 ---
@@ -144,6 +196,7 @@ FROM `battery_data.battery_cleaned`;
 - Astro CLI
 - GCP Project + IAM access
 - dbt-bigquery + Google SDK
+- Kafka (Optional)
 
 ---
 
@@ -160,5 +213,6 @@ FROM `battery_data.battery_cleaned`;
 
 - CALCE Battery Dataset
 - Google BigQuery and Cloud Pub/Sub
+- Apache Kafka / Redpanda
 - Astronomer (Airflow)
 - dbt Labs
